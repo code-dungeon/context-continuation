@@ -1,21 +1,23 @@
 import * as hooks from 'async_hooks';
 
-const MERGE: symbol = Symbol('merge');
-
 export type Context = Map<symbol | string, any>;
+interface ContextWrapper {
+  id: number;
+  parentId: number;
+  context: Context;
+  children: Set<number>;
+  merge: boolean;
+}
 
 export class ContextManager {
-  private contextMap: Map<number, Context>;
-  private parentChildrenIdMap: Map<number, Set<number>>;
-  private childParentIdMap: Map<number, number>;
+  private contextMap: Map<number, ContextWrapper>;
 
   constructor() {
     this.contextMap = new Map();
-    this.parentChildrenIdMap = new Map();
-    this.childParentIdMap = new Map();
 
     hooks.createHook({
       init: this.asyncInit.bind(this),
+      before: this.asyncBefore.bind(this),
       destroy: this.asyncDestroy.bind(this)
     }).enable();
   }
@@ -32,51 +34,46 @@ export class ContextManager {
   }
 
   public get context(): Context {
-    return this.getContext();
+    return this.getContext().context;
   }
 
   public get merge(): boolean {
-    const { context } = this;
-    return Boolean(context.get(MERGE));
+    return this.getContext().merge;
   }
 
   public set merge(value: boolean) {
-    const { context } = this;
-    context.set(MERGE, value);
+    this.getContext().merge = value;
   }
 
-  private getParentContext(triggerAsyncId: number): Context {
-    const { contextMap, parentChildrenIdMap: parentToChildren } = this;
-    let context: Context = contextMap.get(triggerAsyncId);
+  private getParentContext(id: number): ContextWrapper {
+    const { contextMap } = this;
+    let context: ContextWrapper = contextMap.get(id);
 
     if (context === undefined) {
-      context = new Map();
-      contextMap.set(triggerAsyncId, context);
-    }
-
-    if (parentToChildren.has(triggerAsyncId) === false) {
-      parentToChildren.set(triggerAsyncId, new Set());
+      context = { id, parentId: 0, merge: false, children: new Set(), context: new Map() };
+      contextMap.set(id, context);
     }
 
     return context;
   }
 
-  private getContext(asyncId: number = hooks.executionAsyncId(), triggerAsyncId: number = hooks.triggerAsyncId()): Context {
-    const { contextMap, childParentIdMap: childToParent, parentChildrenIdMap: parentToChildren } = this;
-    let context: Context = contextMap.get(asyncId);
+  public getContext(id: number = hooks.executionAsyncId(), parentId: number = hooks.triggerAsyncId()): ContextWrapper {
+    const { contextMap } = this;
+    let context: ContextWrapper = contextMap.get(id);
 
     if (context === undefined) {
-      const parent: Context = this.getParentContext(triggerAsyncId);
+      const parent: ContextWrapper = this.getParentContext(parentId);
 
-      if (parent.get(MERGE) !== true) {
-        context = new Map(parent);
+      let newContext: Context;
+      if (parent.merge === false) {
+        newContext = new Map(parent.context);
       } else {
-        context = parent;
+        newContext = parent.context;
       }
+      context = { id, parentId, children: new Set(), context: newContext, merge: parent.merge };
 
-      parentToChildren.get(triggerAsyncId).add(asyncId);
-      childToParent.set(asyncId, triggerAsyncId);
-      contextMap.set(asyncId, context);
+      parent.children.add(id);
+      contextMap.set(id, context);
     }
 
     return context;
@@ -86,42 +83,41 @@ export class ContextManager {
     this.getContext(asyncId, triggerAsyncId);
   }
 
+  private asyncBefore(asyncId: number): void {
+    this.getContext(asyncId);
+  }
+
   private asyncDestroy(asyncId: number): void {
-    // remove the id from parent mapping
-    // and this link to get the parent from asyncId
-    this.removeChildParentLink(asyncId);
-
-    // this call will also remove this from contextMap
-    this.cleanupChildren(asyncId);
+    this.cleanupContext(asyncId);
   }
 
-  private removeChildParentLink(asyncId: number): void {
-    const { childParentIdMap, parentChildrenIdMap } = this;
-    const parentId: number = childParentIdMap.get(asyncId);
-    const children: Set<number> = parentChildrenIdMap.get(parentId);
+  private cleanupContext(id: number): void {
+    const { contextMap } = this;
+    const context: ContextWrapper = contextMap.get(id);
 
-    childParentIdMap.delete(asyncId);
-
-    if (children !== undefined) {
-      // remove self from parent's list of children
-      children.delete(asyncId);
+    // apparently destroy can be called multiple times
+    /* istanbul ignore if */
+    if (context === undefined) {
+      return;
     }
+
+    if (context.children.size === 0) {
+      contextMap.delete(id);
+    }
+
+    this.cleanupParent(id, context.parentId);
   }
 
-  private cleanupChildren(asyncId: number): void {
-    const { contextMap, childParentIdMap, parentChildrenIdMap } = this;
-    const children: Set<number> = parentChildrenIdMap.get(asyncId);
-
-    if (children !== undefined) {
-      children.forEach((childId: number) => {
-        // cleanup any children this node has
-        this.cleanupChildren(childId);
-        // remove the link pointing back to parent
-        childParentIdMap.delete(childId);
-      });
+  private cleanupParent(childId: number, parentId: number): void {
+    const { contextMap } = this;
+    const parent: ContextWrapper = contextMap.get(parentId);
+    if (parent === undefined) {
+      return;
     }
 
-    parentChildrenIdMap.delete(asyncId);
-    contextMap.delete(asyncId);
+    parent.children.delete(childId);
+    if (parent.children.size === 0) {
+      return this.cleanupContext(parentId);
+    }
   }
 }
