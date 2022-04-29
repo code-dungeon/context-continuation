@@ -7,6 +7,9 @@ function get(target: ContextManager, key: string | symbol): any {
     case '$init':
       result = target.init.bind(target);
       break;
+    case '$info':
+      result = target.info.bind(target);
+      break;
     case '$merge':
       result = target.merge;
       break;

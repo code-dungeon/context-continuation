@@ -1,12 +1,21 @@
 import * as hooks from 'async_hooks';
 
-export type Context = Map<symbol | string, any>;
+export type ContextKey = string|symbol;
+export type ContextValuesObject = { [k: ContextKey]: any };
+export type Context = Map<ContextKey, any>;
 interface ContextWrapper {
   id: number;
   parentId: number;
   context: Context;
   children: Set<number>;
   merge: boolean;
+}
+
+interface ContextDebugInfo {
+  id: number;
+  parentId: number;
+  merge: boolean;
+  values: ContextValuesObject;
 }
 
 export class ContextManager {
@@ -23,14 +32,32 @@ export class ContextManager {
   }
 
   public init(fn?: Function): Function | void {
-    this.merge = true;
-
     if (fn instanceof Function) {
+      this.merge = false;
       return (...params: Array<any>) => {
         this.merge = true;
         return fn(...params);
       };
     }
+  }
+
+  public info(): Array<ContextDebugInfo> {
+    let ctx: ContextWrapper = this.getContext();
+    const contexts:Array<ContextDebugInfo> = [this.getContextDebugInfo(ctx)];
+
+    while (ctx.id !== 0) {
+        ctx = this.getParentContext(ctx.parentId);
+        contexts.push(this.getContextDebugInfo(ctx));
+    }
+
+    return contexts;
+  }
+
+  private getContextDebugInfo(ctx: ContextWrapper): ContextDebugInfo {
+    const { id, parentId, merge, context } = ctx;
+    const values: ContextValuesObject = Object.fromEntries(context);
+
+    return {id, parentId, merge, values};
   }
 
   public get context(): Context {
