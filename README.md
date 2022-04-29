@@ -2,12 +2,12 @@
 
 # Context-Continuation
 
-Context-Continuation works like thread-local storage in threaded
+Context-Continuation works like [thread-local storage] in threaded
 programming, but is based on chains of Node-style callbacks instead of threads.
 The standard Node convention of functions calling functions is very similar to
-something called ["continuation-passing style"][cps] in functional programming,
+[Continuation-Passing Style (CPS)] in functional programming,
 and the name comes from the way this module allows you to set and get values
-that are scoped to the lifetime of these chains of function calls.
+scoped to the lifetime of these chains of function calls.
 
 This library is very similar in functionality to other packages like
 [continuation-local-storage](https://www.npmjs.com/package/continuation-local-storage),
@@ -103,3 +103,7 @@ Look up a value on the current context.
 
 A context is a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) to the
 current execution context. Since the context is actually a proxy, you can use it like any other javascript object. Getting values will work using dot property, square bracket and destructuring. Setting values will work with dot property and square brackets.
+
+[thread-local storage]: https://en.wikipedia.org/wiki/Thread-local_storage
+
+[Continuation-Passing Style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
