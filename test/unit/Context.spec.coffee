@@ -1,69 +1,92 @@
-{ctx} = importModule('Context')
+{ ctx, init, bind } = importModule('Context')
+EventEmitter = require('events')
+util = require('util')
+
+# Tests that use the root context will cleanup with an `And`
+# this is due to the root object working like a global
 
 describe 'Context', ->
-  describe 'modifications won\'t affect parent context in async code', ->
-    Given -> 
-      ctx.key = 1
-    When (done) ->
-      new Promise( (resolve) =>
-        process.nextTick ->
-          ctx.key = 2
-          resolve()
-      ).then(done)
-      return
+  describe 'running in root context', ->
+    When -> ctx.key = 1
     Then -> ctx.key.should.equal(1)
 
-  describe '$merge', ->
-    When (done) ->
-      process.nextTick =>
-        @result = @ctx.$merge
-        done()
-    
-    describe 'defaults to false', ->
-      Given -> @ctx = ctx
-      Then -> @result.should.be.false
-
-    describe 'retains value', ->
-      Given -> 
-        @ctx = ctx
-        @ctx.$merge = true
-      Then -> @result.should.be.true
-
-  describe '$init', ->
-    describe 'without an initializer', ->
-      Given ->
-        ctx.$init()
-        ctx.key = 1 
-      When (done) ->
-        new Promise( (resolve) ->
-          process.nextTick ->
-            ctx.key = 2
-            resolve()
-        ).then(done)
-        return
-      Then -> ctx.key.should.equal(2)
-      And -> ctx.$merge.should.be.true
-
-    describe 'with an initializer', ->
-      Given -> 
-        @fn = ctx.$init( ->
-          ctx.key = 1 
+  describe 'child async does not modify parent', ->
+    Given ->
+      ctx.key = 1
+      @run = init( (done) ->
+        process.nextTick( ->
+          ctx.key = 2
         )
-      When -> @fn()
-      Then -> ctx.key.should.equal(1)
-      And -> ctx.$merge.should.be.true
+      )
+    When (done) ->
+      @run()
+      process.nextTick(done)
+    Then -> ctx.key.should.equal(1)
 
-  describe 'setting and getting', ->
-    Given -> @value = 1
-    When -> ctx.key = @value
-    Then -> ctx.key.should.equal(@value)
+  describe 'child has access to parent values', ->
+    Given ->
+      ctx.key = 1
+      @run = init( (done) ->
+        process.nextTick(done)
+      )
+    When (done) -> @run(done)
+    Then -> ctx.key.should.equal(1)
 
-  describe 'using in operator', ->
-    Given -> ctx.key = 1
-    When -> @result = 'key' of ctx
-    Then -> @result.should.be.true
+  describe 'has the execution context from invocation', ->
+    Given ->
+      @runInOneContext = init( =>
+        ctx.key = 1
+        @emitter = new EventEmitter()
+        @emitter.on('event', () => @value = ctx.key)
+      )
+      @runInAnotherContext = init( (done) =>
+        ctx.key = 2
+        @emitter.emit('event')
+        done()
+      )
+    When (done) ->
+      @runInOneContext()
+      @runInAnotherContext(done)
+    Then -> @value.should.equal(2)
 
-  describe 'getting keys', ->
-    Given -> ctx.key = 1
-    When -> @result = Reflect.ownKeys(ctx)
-    Then -> @result.should.eql(['key'])
+  describe 'has the bound execution context when using bind, not the one from invocation', ->
+    Given ->
+      @runInOneContext = init( =>
+        ctx.key = 1
+        @emitter = new EventEmitter()
+        @emitter.on('event', bind(() => @value = ctx.key) )
+      )
+      @runInAnotherContext = init( (done) =>
+        ctx.key = 2
+        @emitter.emit('event')
+        done()
+      )
+    When (done) ->
+      @runInOneContext()
+      @runInAnotherContext(done)
+    Then -> @value.should.equal(1)
+
+  describe 'for in works', ->
+    Given ->
+      ctx.firstName = 'John'
+      ctx.lastName = 'Smith'
+    When ->
+      @keyValuePairs = []
+      for key of ctx
+        value = ctx[key]
+        @keyValuePairs.push({
+          key: key
+          value: value
+        })
+    # Not checking the entire array because it will also contain rootContext values
+    Then -> @keyValuePairs.should.deep.include({ key: 'firstName', value: 'John' })
+    And -> @keyValuePairs.should.deep.include({ key: 'lastName', value: 'Smith' })
+
+  describe 'own keys', ->
+    Given ->
+      ctx.firstName = 'John'
+      ctx.lastName = 'Smith'
+    When -> @keys = Object.keys(ctx)
+    # Not checking the entire array because it will also contain rootContext values
+    Then -> @keys.should.include('firstName')
+    And -> @keys.should.include('lastName')
