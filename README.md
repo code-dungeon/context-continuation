@@ -2,20 +2,23 @@
 
 # Context-Continuation
 
-Context-Continuation works like thread-local storage in threaded
+Context-Continuation works like [thread-local storage] in threaded
 programming, but is based on chains of Node-style callbacks instead of threads.
+
 The standard Node convention of functions calling functions is very similar to
-something called ["continuation-passing style"][cps] in functional programming,
-and the name comes from the way this module allows you to set and get values
-that are scoped to the lifetime of these chains of function calls.
+[Continuation-Passing Style (CPS)] in functional programming. This module allows you to 
+set and get values scoped to the lifetime of these chains of function calls.
 
 This library is very similar in functionality to other packages like
 [continuation-local-storage](https://www.npmjs.com/package/continuation-local-storage),
-but differs in implementation. Similar libraries all rely on patching and won't work with async/await,
-instead this library uses the [async hooks api](https://nodejs.org/api/async_hooks.html).
+but differs in implementation. Similar libraries rely on patching and won't work with async/await.
+Instead this library uses the [async hooks api](https://nodejs.org/api/async_hooks.html).
+
+
+## Example
 
 Suppose you're writing a module that fetches a user and adds it to a session
-before calling a function passed in by a user to continue execution:
+before executing the provided callback (in this case `next`):
 
 ```javascript
 // setup.js
@@ -33,7 +36,7 @@ async function start(options, next) {
 }
 ```
 
-Later on in the process of turning that user's data into an HTML page, you call
+Later on in a process for rendering the user's data into HTML, you call
 another function (maybe defined in another module entirely) that wants to fetch
 the value you set earlier:
 
@@ -103,3 +106,7 @@ Look up a value on the current context.
 
 A context is a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) to the
 current execution context. Since the context is actually a proxy, you can use it like any other javascript object. Getting values will work using dot property, square bracket and destructuring. Setting values will work with dot property and square brackets.
+
+[thread-local storage]: https://en.wikipedia.org/wiki/Thread-local_storage
+
+[Continuation-Passing Style (CPS)]: https://en.wikipedia.org/wiki/Continuation-passing_style
