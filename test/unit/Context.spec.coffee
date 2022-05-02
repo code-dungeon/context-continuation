@@ -32,6 +32,11 @@ describe 'Context', ->
     When (done) -> @run(done)
     Then -> ctx.key.should.equal(1)
 
+  describe 'deleting a key works', ->
+    Given -> ctx.toDelete = 1
+    When -> delete ctx.toDelete
+    Then -> expect(ctx.toDelete).to.be.undefined
+
   describe 'has the execution context from invocation', ->
     Given ->
       @runInOneContext = init( =>

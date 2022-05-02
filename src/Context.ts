@@ -45,12 +45,7 @@ export const ctx: Context = new Proxy(asyncLocalStorage, {
 
     // context is undefined when currently in the root context
     // delete will be safe in the root context, since we are actively in it
-    if( context.has(key)) {
-      context.delete(key);
-      return true;
-    }
-
-    return false;
+    return context.delete(key);
   },
   get(storage: Storage, key: ContextKey): any {
     return getValue(storage, key);
