@@ -1,6 +1,6 @@
 {
   "name": "@code-dungeon/context-continuation",
-  "version": "0.0.5-beta.3",
+  "version": "0.0.5",
   "description": "A small library allowing context to continue through async code, available for lookup.",
   "main": "dist/index.js",
   "engines": {

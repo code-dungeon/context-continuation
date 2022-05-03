@@ -83,8 +83,12 @@ export const ctx: Context = new Proxy(asyncLocalStorage, {
   },
 });
 
-export function bind<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any): Func {
-  return AsyncResource.bind(fn, undefined, thisArg);
+export function bind<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any): (...args: TArgs) => R {
+  const boundFunc = AsyncResource.bind<any, TArgs>(fn, thisArg);
+
+  return function boundCallback(...args: TArgs): R {
+    return boundFunc(thisArg, ...args);
+  };
 }
 
 export function init<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func): (...args: TArgs) => R {

@@ -56,20 +56,24 @@ describe 'Context', ->
 
   describe 'has the bound execution context when using bind, not the one from invocation', ->
     Given ->
-      @runInOneContext = init( =>
+      @runInOneContext = init(() =>
         ctx.key = 1
         @emitter = new EventEmitter()
-        @emitter.on('event', bind(() => @value = ctx.key) )
+        @emitter.on('event', bind((arg) =>
+          @value = ctx.key
+          @arg = arg
+        ))
       )
       @runInAnotherContext = init( (done) =>
         ctx.key = 2
-        @emitter.emit('event')
+        @emitter.emit('event', 'someval')
         done()
       )
     When (done) ->
       @runInOneContext()
       @runInAnotherContext(done)
     Then -> @value.should.equal(1)
+    And -> @arg.should.equal('someval')
 
   describe 'for in works', ->
     Given ->
