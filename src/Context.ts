@@ -1,5 +1,5 @@
 import { AsyncLocalStorage, AsyncResource } from 'async_hooks';
-
+const VERSION_REGEX: RegExp = /v(\d+)\.\d+.*/;
 export type Context = any;
 
 type ContextKey = string|symbol;
@@ -14,6 +14,11 @@ interface ContextRef {
 
 const rootContext: ContextMap = new Map();
 const asyncLocalStorage: Storage = new AsyncLocalStorage();
+
+function getNodeMajorVersion():string {
+  const [,version] = VERSION_REGEX.exec(process.version);
+  return version;
+}
 
 function getValue(storage: Storage, key: ContextKey): any {
   const context: ContextMap = getContext(storage, key);
@@ -83,14 +88,6 @@ export const ctx: Context = new Proxy(asyncLocalStorage, {
   },
 });
 
-export function bind<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any): (...args: TArgs) => R {
-  const boundFunc = AsyncResource.bind<any, TArgs>(fn);
-
-  return function boundCallback(...args: TArgs): R {
-    return boundFunc(thisArg, ...args);
-  };
-}
-
 export function init<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func): (...args: TArgs) => R {
   return function run(...args: TArgs): R {
     const parent = asyncLocalStorage.getStore();
@@ -103,3 +100,32 @@ export function run<R, TArgs extends Array<any>, Func extends (...args: TArgs) =
   const runner = init<R, TArgs, Func>(fn.bind(thisArg));
   return runner(...args);
 }
+
+function bindv14<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any): (...args: TArgs) => R {
+  const boundFunc = AsyncResource.bind<any, TArgs>(fn);
+
+  return function boundCallback(...args: TArgs): R {
+    return boundFunc(thisArg, ...args);
+  };
+}
+
+function bindv16<R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any): (...args: TArgs) => R {
+  const boundFunc = AsyncResource.bind<any, TArgs>(fn, thisArg);
+
+  return function boundCallback(...args: TArgs): R {
+    return boundFunc(...args);
+  };
+}
+
+let bindVersion: <R, TArgs extends Array<any>, Func extends (...args: TArgs) => R>(fn: Func, thisArg?: any) => (...args: TArgs) => R;
+
+switch (getNodeMajorVersion()) {
+  case '14':
+    bindVersion = bindv14;
+    break;
+  default:
+    bindVersion = bindv16;
+    break;
+}
+
+export const bind = bindVersion;
