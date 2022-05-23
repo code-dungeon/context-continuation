@@ -1,4 +1,6 @@
-{ ctx, init, bind } = importModule('Context')
+{ ctx } = importModule('Context')
+{ init } = importModule('util')
+{ bind } = importModule('bind')
 EventEmitter = require('events')
 util = require('util')
 
